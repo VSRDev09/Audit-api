@@ -3,6 +3,7 @@ package com.auditoria.ai.controller;
 import com.auditoria.ai.dto.AuditRequest;
 import com.auditoria.ai.dto.AuditResponse;
 import com.auditoria.ai.service.AuditService;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -17,21 +18,21 @@ public class AuditController {
 
     @PostMapping("/hydrogen")
     public AuditResponse generateWithHydrogen(
-            @RequestBody AuditRequest request
+            @Valid @RequestBody AuditRequest request
     ) {
         return auditService.generateWithHydrogen(request);
     }
 
     @PostMapping("/flash")
     public AuditResponse generateWithFlash(
-            @RequestBody AuditRequest request
+            @Valid @RequestBody AuditRequest request
     ) {
         return auditService.generateWithFlash(request);
     }
 
     @PostMapping("/flash-lite")
     public AuditResponse generateWithFlashLite(
-            @RequestBody AuditRequest request
+            @Valid @RequestBody AuditRequest request
     ) {
         return auditService.generateWithFlashLite(request);
     }

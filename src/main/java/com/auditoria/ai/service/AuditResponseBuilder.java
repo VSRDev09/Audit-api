@@ -4,6 +4,7 @@ import com.auditoria.ai.dto.AuditRequest;
 import com.auditoria.ai.dto.AuditResponse;
 import com.auditoria.ai.dto.ContentBlock;
 import com.auditoria.ai.dto.SourceRequest;
+import com.auditoria.ai.exception.AuditGenerationException;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -15,7 +16,7 @@ public class AuditResponseBuilder {
     public AuditResponse build(String generatedText, AuditRequest request) {
 
         if (generatedText == null || generatedText.isBlank()) {
-            throw new IllegalArgumentException("A resposta da IA está vazia.");
+            throw new AuditGenerationException("A resposta da IA está vazia.");
         }
 
         SourceRequest controleInterno = request.controleInterno();
@@ -73,13 +74,13 @@ public class AuditResponseBuilder {
         addTextBlock(blocks, generatedText.substring(position));
 
         if (!controleFound) {
-            throw new IllegalArgumentException(
+            throw new AuditGenerationException(
                     "A resposta da IA não incluiu o nome da fonte: " + controleName
             );
         }
 
         if (!reuniaoFound) {
-            throw new IllegalArgumentException(
+            throw new AuditGenerationException(
                     "A resposta da IA não incluiu o nome da fonte: " + reuniaoName
             );
         }
