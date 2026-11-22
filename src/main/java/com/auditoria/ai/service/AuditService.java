@@ -4,7 +4,6 @@ import com.auditoria.ai.dto.NaturalAuditRequest;
 import jakarta.annotation.PreDestroy;
 import org.springframework.ai.google.genai.GoogleGenAiChatModel;
 import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,12 +21,13 @@ public class AuditService {
     private static final Logger LOGGER = LoggerFactory.getLogger(AuditService.class);
     private static final String FALLBACK_MESSAGE =
             "A Api gratuita do gemini não é humilde e recusou todas as requisições que tentei fazer :(";
+
     private static final int RETRY_ATTEMPTS = 8;
+    private static final long TIMEOUT_SECONDS = 120;
 
     private final PromptService promptService;
     private final NaturalInputProcessor naturalInputProcessor;
     private final ExecutorService modelExecutor = Executors.newVirtualThreadPerTaskExecutor();
-    private final long attemptTimeoutSeconds;
 
     private final GoogleGenAiChatModel hydrogenChatModel;
     private final GoogleGenAiChatModel flashChatModel;
@@ -36,7 +36,6 @@ public class AuditService {
     public AuditService(
             PromptService promptService,
             NaturalInputProcessor naturalInputProcessor,
-            @Value("${app.ai.attempt-timeout-seconds:5}") long attemptTimeoutSeconds,
 
             @Qualifier("hydrogenChatModel")
             GoogleGenAiChatModel hydrogenChatModel,
@@ -49,7 +48,6 @@ public class AuditService {
     ) {
         this.promptService = promptService;
         this.naturalInputProcessor = naturalInputProcessor;
-        this.attemptTimeoutSeconds = attemptTimeoutSeconds;
         this.hydrogenChatModel = hydrogenChatModel;
         this.flashChatModel = flashChatModel;
         this.flashLiteChatModel = flashLiteChatModel;
@@ -73,8 +71,15 @@ public class AuditService {
             String modelName,
             int maxAttempts
     ) {
-        NaturalInputProcessor.ProcessedNaturalInput input = naturalInputProcessor.process(request.entrada());
-        return callModelWithRetry(chatModel, promptService.buildNaturalPrompt(input.text()), modelName, maxAttempts);
+        NaturalInputProcessor.ProcessedNaturalInput input =
+                naturalInputProcessor.process(request.entrada());
+
+        return callModelWithRetry(
+                chatModel,
+                promptService.buildNaturalPrompt(input.text()),
+                modelName,
+                maxAttempts
+        );
     }
 
     private String callModelWithRetry(
@@ -85,28 +90,41 @@ public class AuditService {
     ) {
         for (int attempt = 1; attempt <= maxAttempts; attempt++) {
             LOGGER.info("Modelo {}: tentativa {}/{} iniciada.", modelName, attempt, maxAttempts);
+
             Future<String> response = modelExecutor.submit(() -> chatModel.call(prompt));
+
             try {
-                String text = response.get(attemptTimeoutSeconds, TimeUnit.SECONDS);
+                String text = response.get(TIMEOUT_SECONDS, TimeUnit.SECONDS);
+
                 if (text != null && !text.isBlank()) {
-                    LOGGER.info("Modelo {}: tentativa {}/{} concluída com sucesso.", modelName, attempt, maxAttempts);
+                    LOGGER.info("Modelo {}: tentativa {}/{} concluída com sucesso.",
+                            modelName, attempt, maxAttempts);
                     return text;
                 }
-                LOGGER.warn("Modelo {}: tentativa {}/{} retornou texto vazio.", modelName, attempt, maxAttempts);
+
+                LOGGER.warn("Modelo {}: tentativa {}/{} retornou texto vazio.",
+                        modelName, attempt, maxAttempts);
+
             } catch (TimeoutException exception) {
                 LOGGER.warn("Modelo {}: tentativa {}/{} excedeu {} segundos.",
-                        modelName, attempt, maxAttempts, attemptTimeoutSeconds);
+                        modelName, attempt, maxAttempts, TIMEOUT_SECONDS);
+
             } catch (InterruptedException exception) {
                 Thread.currentThread().interrupt();
-                LOGGER.warn("Modelo {}: tentativa {}/{} foi interrompida.", modelName, attempt, maxAttempts);
+
+                LOGGER.warn("Modelo {}: tentativa {}/{} foi interrompida.",
+                        modelName, attempt, maxAttempts);
                 break;
+
             } catch (ExecutionException exception) {
                 LOGGER.warn("Modelo {}: tentativa {}/{} falhou: {}",
                         modelName, attempt, maxAttempts, exception.getCause().getMessage());
+
             } finally {
                 response.cancel(true);
             }
         }
+
         LOGGER.error("Modelo {} não respondeu após {} tentativa(s).", modelName, maxAttempts);
         return FALLBACK_MESSAGE;
     }
