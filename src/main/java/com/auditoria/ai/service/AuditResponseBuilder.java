@@ -13,6 +13,41 @@ import java.util.List;
 @Service
 public class AuditResponseBuilder {
 
+    public AuditResponse buildSingle(String generatedText, SourceRequest source) {
+        if (generatedText == null || generatedText.isBlank()) {
+            throw new AuditGenerationException("A resposta da IA está vazia.");
+        }
+
+        validateSource(source);
+        int index = generatedText.indexOf(source.nome());
+        if (index == -1) {
+            throw new AuditGenerationException(
+                    "A resposta da IA não incluiu o nome da fonte: " + source.nome()
+            );
+        }
+
+        List<ContentBlock> blocks = new ArrayList<>();
+        addTextBlock(blocks, generatedText.substring(0, index));
+        blocks.add(new ContentBlock("LINK", source.nome(), source.url()));
+        addTextBlock(blocks, generatedText.substring(index + source.nome().length()));
+
+        return new AuditResponse("Entendimento do Controle Interno", blocks);
+    }
+
+    public AuditResponse buildNatural(String generatedText, List<SourceRequest> sources) {
+        if (generatedText == null || generatedText.isBlank()) {
+            throw new AuditGenerationException("A resposta da IA está vazia.");
+        }
+
+        List<ContentBlock> blocks = new ArrayList<>();
+        blocks.add(new ContentBlock("TEXT", generatedText, null));
+        for (SourceRequest source : sources) {
+            validateSource(source);
+            blocks.add(new ContentBlock("LINK", source.nome(), source.url()));
+        }
+        return new AuditResponse("Entendimento do Controle Interno", blocks);
+    }
+
     public AuditResponse build(String generatedText, AuditRequest request) {
 
         if (generatedText == null || generatedText.isBlank()) {

@@ -30,6 +30,11 @@ public class GlobalExceptionHandler {
         return error(HttpStatus.BAD_REQUEST, "O corpo da requisição deve ser um JSON válido.", Map.of());
     }
 
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ApiError> handleInvalidArgument(IllegalArgumentException exception) {
+        return error(HttpStatus.BAD_REQUEST, exception.getMessage(), Map.of());
+    }
+
     @ExceptionHandler(AuditGenerationException.class)
     public ResponseEntity<ApiError> handleGeneration(AuditGenerationException exception) {
         return error(HttpStatus.BAD_GATEWAY, exception.getMessage(), Map.of());

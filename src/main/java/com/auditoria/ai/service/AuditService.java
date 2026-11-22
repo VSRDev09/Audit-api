@@ -1,26 +1,42 @@
 package com.auditoria.ai.service;
 
-import com.auditoria.ai.dto.AuditRequest;
-import com.auditoria.ai.dto.AuditResponse;
+import com.auditoria.ai.dto.NaturalAuditRequest;
+import jakarta.annotation.PreDestroy;
 import org.springframework.ai.google.genai.GoogleGenAiChatModel;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 @Service
 public class AuditService {
 
-    private final SourceContextService sourceContextService;
+    private static final Logger LOGGER = LoggerFactory.getLogger(AuditService.class);
+    private static final String FALLBACK_MESSAGE =
+            "A Api gratuita do gemini não é humilde e recusou todas as requisições que tentei fazer :(";
+    private static final int RETRY_ATTEMPTS = 8;
+
     private final PromptService promptService;
-    private final AuditResponseBuilder responseBuilder;
+    private final NaturalInputProcessor naturalInputProcessor;
+    private final ExecutorService modelExecutor = Executors.newVirtualThreadPerTaskExecutor();
+    private final long attemptTimeoutSeconds;
 
     private final GoogleGenAiChatModel hydrogenChatModel;
     private final GoogleGenAiChatModel flashChatModel;
     private final GoogleGenAiChatModel flashLiteChatModel;
 
     public AuditService(
-            SourceContextService sourceContextService,
             PromptService promptService,
-            AuditResponseBuilder responseBuilder,
+            NaturalInputProcessor naturalInputProcessor,
+            @Value("${app.ai.attempt-timeout-seconds:5}") long attemptTimeoutSeconds,
 
             @Qualifier("hydrogenChatModel")
             GoogleGenAiChatModel hydrogenChatModel,
@@ -31,34 +47,72 @@ public class AuditService {
             @Qualifier("flashLiteChatModel")
             GoogleGenAiChatModel flashLiteChatModel
     ) {
-        this.sourceContextService = sourceContextService;
         this.promptService = promptService;
-        this.responseBuilder = responseBuilder;
+        this.naturalInputProcessor = naturalInputProcessor;
+        this.attemptTimeoutSeconds = attemptTimeoutSeconds;
         this.hydrogenChatModel = hydrogenChatModel;
         this.flashChatModel = flashChatModel;
         this.flashLiteChatModel = flashLiteChatModel;
     }
 
-    public AuditResponse generateWithHydrogen(AuditRequest request) {
-        return generate(request, hydrogenChatModel);
+    public String generateNaturalTextWithHydrogen(NaturalAuditRequest request) {
+        return generateNaturalText(request, hydrogenChatModel, "hydrogen", RETRY_ATTEMPTS);
     }
 
-    public AuditResponse generateWithFlash(AuditRequest request) {
-        return generate(request, flashChatModel);
+    public String generateNaturalTextWithFlash(NaturalAuditRequest request) {
+        return generateNaturalText(request, flashChatModel, "flash", RETRY_ATTEMPTS);
     }
 
-    public AuditResponse generateWithFlashLite(AuditRequest request) {
-        return generate(request, flashLiteChatModel);
+    public String generateNaturalTextWithFlashLite(NaturalAuditRequest request) {
+        return generateNaturalText(request, flashLiteChatModel, "flash-lite", 1);
     }
 
-    private AuditResponse generate(
-            AuditRequest request,
-            GoogleGenAiChatModel chatModel
+    private String generateNaturalText(
+            NaturalAuditRequest request,
+            GoogleGenAiChatModel chatModel,
+            String modelName,
+            int maxAttempts
     ) {
-        String context = sourceContextService.buildContext(request);
-        String prompt = promptService.buildPrompt(context);
-        String generatedText = chatModel.call(prompt);
+        NaturalInputProcessor.ProcessedNaturalInput input = naturalInputProcessor.process(request.entrada());
+        return callModelWithRetry(chatModel, promptService.buildNaturalPrompt(input.text()), modelName, maxAttempts);
+    }
 
-        return responseBuilder.build(generatedText, request);
+    private String callModelWithRetry(
+            GoogleGenAiChatModel chatModel,
+            String prompt,
+            String modelName,
+            int maxAttempts
+    ) {
+        for (int attempt = 1; attempt <= maxAttempts; attempt++) {
+            LOGGER.info("Modelo {}: tentativa {}/{} iniciada.", modelName, attempt, maxAttempts);
+            Future<String> response = modelExecutor.submit(() -> chatModel.call(prompt));
+            try {
+                String text = response.get(attemptTimeoutSeconds, TimeUnit.SECONDS);
+                if (text != null && !text.isBlank()) {
+                    LOGGER.info("Modelo {}: tentativa {}/{} concluída com sucesso.", modelName, attempt, maxAttempts);
+                    return text;
+                }
+                LOGGER.warn("Modelo {}: tentativa {}/{} retornou texto vazio.", modelName, attempt, maxAttempts);
+            } catch (TimeoutException exception) {
+                LOGGER.warn("Modelo {}: tentativa {}/{} excedeu {} segundos.",
+                        modelName, attempt, maxAttempts, attemptTimeoutSeconds);
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+                LOGGER.warn("Modelo {}: tentativa {}/{} foi interrompida.", modelName, attempt, maxAttempts);
+                break;
+            } catch (ExecutionException exception) {
+                LOGGER.warn("Modelo {}: tentativa {}/{} falhou: {}",
+                        modelName, attempt, maxAttempts, exception.getCause().getMessage());
+            } finally {
+                response.cancel(true);
+            }
+        }
+        LOGGER.error("Modelo {} não respondeu após {} tentativa(s).", modelName, maxAttempts);
+        return FALLBACK_MESSAGE;
+    }
+
+    @PreDestroy
+    void closeExecutor() {
+        modelExecutor.shutdownNow();
     }
 }

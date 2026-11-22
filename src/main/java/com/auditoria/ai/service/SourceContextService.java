@@ -8,6 +8,14 @@ import com.auditoria.ai.dto.SourceRequest;
 @Service
 public class SourceContextService {
 
+    public String buildSingleContext(SourceRequest source) {
+        return """
+                FONTE DE INFORMAÇÃO
+
+                Identificação da fonte: %s
+                """.formatted(source.nome());
+    }
+
     public String buildContext(AuditRequest request) {
 
         SourceRequest controleInterno = request.controleInterno();

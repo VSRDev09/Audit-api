@@ -1,9 +1,10 @@
 package com.auditoria.ai.controller;
 
-import com.auditoria.ai.dto.AuditRequest;
-import com.auditoria.ai.dto.AuditResponse;
+import com.auditoria.ai.dto.NaturalAuditRequest;
 import com.auditoria.ai.service.AuditService;
 import jakarta.validation.Valid;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -16,24 +17,24 @@ public class AuditController {
         this.auditService = auditService;
     }
 
-    @PostMapping("/hydrogen")
-    public AuditResponse generateWithHydrogen(
-            @Valid @RequestBody AuditRequest request
+    @PostMapping(value = "/natural-text/hydrogen", produces = MediaType.TEXT_PLAIN_VALUE)
+    public ResponseEntity<String> generateNaturalTextWithHydrogen(
+            @Valid @RequestBody NaturalAuditRequest request
     ) {
-        return auditService.generateWithHydrogen(request);
+        return ResponseEntity.ok(auditService.generateNaturalTextWithHydrogen(request));
     }
 
-    @PostMapping("/flash")
-    public AuditResponse generateWithFlash(
-            @Valid @RequestBody AuditRequest request
+    @PostMapping(value = "/natural-text/flash", produces = MediaType.TEXT_PLAIN_VALUE)
+    public ResponseEntity<String> generateNaturalTextWithFlash(
+            @Valid @RequestBody NaturalAuditRequest request
     ) {
-        return auditService.generateWithFlash(request);
+        return ResponseEntity.ok(auditService.generateNaturalTextWithFlash(request));
     }
 
-    @PostMapping("/flash-lite")
-    public AuditResponse generateWithFlashLite(
-            @Valid @RequestBody AuditRequest request
+    @PostMapping(value = "/natural-text/flash-lite", produces = MediaType.TEXT_PLAIN_VALUE)
+    public ResponseEntity<String> generateNaturalTextWithFlashLite(
+            @Valid @RequestBody NaturalAuditRequest request
     ) {
-        return auditService.generateWithFlashLite(request);
+        return ResponseEntity.ok(auditService.generateNaturalTextWithFlashLite(request));
     }
 }

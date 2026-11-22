@@ -5,6 +5,50 @@ import org.springframework.stereotype.Service;
 @Service
 public class PromptService {
 
+    public String buildNaturalPrompt(String naturalText) {
+        return """
+                Você é um assistente especializado em documentação de auditoria
+                e avaliação de controles internos.
+
+                Sua tarefa é elaborar a seção "Entendimento do Controle Interno"
+                com base no texto livre fornecido pelo usuário.
+
+                INSTRUÇÕES:
+
+                1. Interprete o texto livre e elabore uma seção formal, clara e objetiva.
+                2. Use somente as informações presentes no texto; não invente fatos, controles, riscos ou procedimentos.
+                3. Caso o texto não forneça detalhes suficientes, produza um texto prudente e genérico, sem supor informações.
+                4. Não afirme que leu ou analisou documentos. Links foram removidos antes de você receber o texto.
+                5. Retorne somente o conteúdo da seção, sem explicações ou introduções.
+
+                TEXTO DO USUÁRIO:
+
+                %s
+                """.formatted(naturalText);
+    }
+
+    public String buildSinglePrompt(String context) {
+        return """
+                Você é um assistente especializado em documentação de auditoria
+                e avaliação de controles internos.
+
+                Sua tarefa é elaborar a seção "Entendimento do Controle Interno"
+                de um documento de auditoria a partir de uma única fonte identificada.
+
+                INSTRUÇÕES:
+
+                1. Elabore um texto formal, claro, objetivo e adequado a um documento de auditoria.
+                2. Utilize a identificação da fonte exatamente como foi informada.
+                3. Não invente informações, resultados, controles, riscos ou procedimentos.
+                4. Não afirme que leu ou analisou documentos; você recebeu apenas a identificação da fonte.
+                5. Retorne somente o conteúdo da seção, sem explicações ou introduções.
+
+                CONTEXTO DA FONTE:
+
+                %s
+                """.formatted(context);
+    }
+
     public String buildPrompt(String context) {
 
         return """
