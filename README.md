@@ -123,3 +123,62 @@ curl -X POST "http://localhost:8080/api/audit/natural-text/flash" \
 ```
 
 O campo `entrada` deve conter o texto utilizado como referência para a auditoria, podendo incluir informações e links para documentos relevantes ao processo.
+
+
+### Utilização do Ollama — Infraestrutura do IFBA
+
+O IFBA disponibiliza uma API baseada no Ollama, permitindo utilizar modelos de inteligência artificial hospedados em sua infraestrutura, sem a necessidade de executá-los localmente. A API oferece acesso a modelos de linguagem (LLMs) e modelos de embeddings, possibilitando experimentações com diferentes arquiteturas e aplicações.
+
+### Listando os modelos disponíveis
+
+Para consultar os modelos disponíveis no servidor, utilize:
+
+```bash
+curl https://ollama-api.ifba.edu.br/api/tags | python -m json.tool
+````
+
+O comando retorna a lista de modelos disponíveis, permitindo identificar quais podem ser utilizados nas requisições.
+
+### Realizando uma requisição de chat
+
+É possível enviar mensagens para um modelo e obter respostas utilizando o endpoint `/api/chat`.
+
+Exemplo utilizando o modelo `qwen3:30b`:
+
+```bash
+curl -X POST https://ollama-api.ifba.edu.br/api/chat \
+     -H "Content-Type: application/json" \
+     -d '{
+       "model": "qwen3:30b",
+       "messages": [
+         {
+           "role": "user",
+           "content": "Olá! Explique resumidamente o que é IA."
+         }
+       ],
+       "stream": false
+     }'
+```
+
+Nesse exemplo, uma mensagem é enviada ao modelo e a resposta é retornada em uma única requisição, sem streaming, devido à configuração `"stream": false`.
+
+### Utilizando modelos de embeddings
+
+Além dos modelos generativos, o servidor também disponibiliza modelos de embeddings, que transformam textos em representações vetoriais. Essas representações podem ser utilizadas em aplicações que envolvem busca semântica, comparação de similaridade, recuperação de informações e arquiteturas RAG (Retrieval-Augmented Generation).
+
+Exemplo utilizando o modelo `qwen3-embedding:4b`, disponibilizado no servidor do GSORT:
+
+```bash
+curl -s -X POST https://ollama-api.ifba.edu.br/api/embed \
+     -H "Content-Type: application/json" \
+     -d '{
+       "model": "qwen3-embedding:4b",
+       "input": "Artificial intelligence is transforming software architecture."
+     }'
+```
+
+A resposta contém os vetores gerados a partir do texto informado. Existem outros parâmetros que permitem ajustar o comportamento da geração, incluindo configurações relacionadas às dimensões dos embeddings, de acordo com as capacidades do modelo utilizado.
+
+### Experimentação
+
+A API disponibiliza diferentes modelos e recursos que podem ser explorados para fins de estudo, desenvolvimento e experimentação. Sintam-se à vontade para testar outros modelos, parâmetros, prompts e funcionalidades disponíveis, investigando suas possibilidades e aplicações em projetos.
